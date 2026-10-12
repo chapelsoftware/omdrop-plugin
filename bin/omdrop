@@ -36,6 +36,35 @@
 # packaging/systemd/airdrop-receiver.service.
 set -uo pipefail
 
+# Off Omarchy (Debian/XFCE and the like), stand in for its notifier with
+# notify-send, mapping the options used here: -t MS, --image FILE, and
+# --exec CMD... (run when the notification is clicked).
+if ! command -v omarchy-notification-send >/dev/null 2>&1 \
+   && command -v notify-send >/dev/null 2>&1; then
+  omarchy-notification-send() {
+    local t=5000 icon= pos=() run=()
+    while (( $# )); do
+      case $1 in
+        -t) t=$2; shift 2 ;;
+        --image) icon=$2; shift 2 ;;
+        --exec) shift; run=("$@"); break ;;
+        -*) shift ;;
+        *) pos+=("$1"); shift ;;
+      esac
+    done
+    local opts=(-a Omdrop -t "$t")
+    [[ -n "$icon" ]] && opts+=(-i "$icon")
+    if (( ${#run[@]} )); then
+      # --action waits for the click, so it runs detached.
+      ( [[ "$(notify-send "${opts[@]}" --action=default=Open "${pos[0]:-Omdrop}" "${pos[1]:-}")" == default ]] \
+          && "${run[@]}" ) >/dev/null 2>&1 &
+      disown
+    else
+      notify-send "${opts[@]}" "${pos[0]:-Omdrop}" "${pos[1]:-}"
+    fi
+  }
+fi
+
 UNIT=airdrop-receiver.service
 WINDOW=omdrop-window           # transient .timer that closes the window
 CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/airdrop/config.toml"
@@ -446,7 +475,7 @@ plugin_dir() {
 RECEIVER_PKGS="python-libarchive-c keyutils"
 receiver_libs_installed() {
   python3 -c 'from libarchive import stream_reader' >/dev/null 2>&1 \
-    && [[ -e /usr/lib/libkeyutils.so.1 ]]
+    && python3 -c 'import ctypes; ctypes.CDLL("libkeyutils.so.1")' >/dev/null 2>&1
 }
 
 # The identity this computer presents to Apple devices: its certificate and
