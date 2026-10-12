@@ -65,6 +65,14 @@ if ! command -v omarchy-notification-send >/dev/null 2>&1 \
   }
 fi
 
+# pacman's vercmp isn't there off Arch: same answer (-1, 0, 1) from sort -V.
+if ! command -v vercmp >/dev/null 2>&1; then
+  vercmp() {
+    [[ "$1" == "$2" ]] && { echo 0; return; }
+    [[ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | head -1)" == "$1" ]] && echo -1 || echo 1
+  }
+fi
+
 UNIT=airdrop-receiver.service
 WINDOW=omdrop-window           # transient .timer that closes the window
 CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/airdrop/config.toml"
